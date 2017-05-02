@@ -1,4 +1,3 @@
-import argparse
 import collections
 import csv
 import simplejson as json
@@ -83,6 +82,11 @@ def get_row(line_contents, column_names):
 
     """Convert a yelp dataset file from json to csv."""
 
+
+
+if __name__ == '__main__':
+
+
     json_file = "./yelp_dataset_challenge_round9/yelp_academic_dataset_business.json"
     csv_file = '{0}.csv'.format(json_file.split('.json')[0])
     column_names = get_superset_of_column_names_from_file(json_file)
@@ -94,18 +98,18 @@ def get_row(line_contents, column_names):
     column_names = get_superset_of_column_names_from_file(json_file)
     read_and_write_file(json_file, csv_file, column_names)
 
-if __name__ == '__main__':
-
-
 
     # separate businesses from different cities according to states to different csv
     data = pd.read_csv("./yelp_dataset_challenge_round9/yelp_academic_dataset_business.csv")
     print list(data)
     for state in ['AZ','NV','OH','PA','WI','IL','NC']:
-        csv_file = "./data/"+str(state)+"business_all.csv"
-        new = data[data['state'] == state]
-        # new = data[(data['state']==state) & (data['categories'].str.contains("Restaurants"))]
+        csv_file = "./data/"+str(state)+"business.csv"
+        #new = data[data['state'] == state]
+        new = data[(data['state']==state) & (data['categories'].str.contains("Restaurants"))]
         new.to_csv(csv_file)
+
+
+
 
     # separate reviews from different cities according to states to different csv
     # only for business with greater than 10 reviews
@@ -118,6 +122,9 @@ if __name__ == '__main__':
         filtered = filtered_id[filtered_id >= 100].index.tolist()
         review = data[data['business_id'].isin(filtered)]
         review.to_csv("./data/" + str(state) + "review.csv")
+
+
+
 
 
 
