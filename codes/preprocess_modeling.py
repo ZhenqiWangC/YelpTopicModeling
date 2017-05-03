@@ -5,45 +5,47 @@ from sklearn.feature_selection import SelectKBest,chi2
 import numpy as np
 import sklearn.tree
 from sklearn.model_selection import KFold
+from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
+import sklearn.ensemble
 
-##put this file into where you files are or change the path below
-review = pd.read_csv("yelp_academic_dataset_review.csv")
-business = pd.read_csv("yelp_academic_dataset_business.csv")
+review = pd.read_csv("../data/selectedreviews.csv")
+
 
 #preprocess
-business_nc = business[business.state == "b'NC'"]
-nc_bus_id = business_nc["business_id"]
-review_nc = review[review.business_id.isin(nc_bus_id)]
-star_nc = np.array(review_nc.stars)
-text_nc = list(map(lambda x: x[2:-1].replace("\\n","\n"),review_nc.text))
+
+star = np.array(review.stars)
+text = list(map(lambda x: x[2:-1].replace("\\n","\n"),review.text))
 pat = re.compile(r"[^\w\s]")
-text_nc_clean = np.array(list(map(lambda x: pat.sub("",x).lower(),text_nc)))
+text_clean = np.array(list(map(lambda x: pat.sub(" ",x).lower(),text)))
 
 #create TF-IDF
 
 vectorizer = TfidfVectorizer(stop_words="english")
-text_features = vectorizer.fit_transform(text_nc_clean)
+text_features = vectorizer.fit_transform(text_clean)
 vocab = vectorizer.get_feature_names()
 
-#CV
-n_fold=3
-n_words=100
+################# Multinomial Regression #################
+
+n_fold=5
+n_words=1000
 kf=KFold(n_fold,shuffle=True)
-parameters=[1,5,10,50,100]
+parameters=10.0**np.arange(0,8)
 acc_mat=np.zeros([n_fold,len(parameters)])
+acc_mat_train=np.zeros([n_fold,len(parameters)])
 k=0
 for train_idx,validate_idx in kf.split(text_features):
     text_features_train=text_features[train_idx]
-    star_nc_train=star_nc[train_idx]
+    star_train=star[train_idx]
     text_features_validate=text_features[validate_idx]
-    star_nc_validate=star_nc[validate_idx]
-    fselect = SelectKBest(chi2 , k=n_words)
-    text_features_train = fselect.fit_transform(text_features_train,star_nc_train)
+    star_validate=star[validate_idx]
+    fselect = SelectKBest(chi2,k=n_words)
+    text_features_train = fselect.fit_transform(text_features_train,star_train)
     text_features_validate=text_features_validate[:,fselect.get_support()]
     vocab_current = np.array(vocab)[fselect.get_support()]
     print("Train Feature Space Shape:",text_features_train.shape)
     print("Test Feature Space Shape:",text_features_validate.shape)
-    print("Selected Features:",vocab_current.tolist())
+    print("Last Three Selected Features:",vocab_current.tolist()[-3:])
     ##########################################
     #    Build Models and Tune Parameters    #
     #         Take Tree as an Example        #
@@ -51,16 +53,18 @@ for train_idx,validate_idx in kf.split(text_features):
     ##########################################
     t=0
     for para in parameters:
-        mod_temp=sklearn.tree.DecisionTreeClassifier(max_depth=para)
-        mod_temp.fit(X=text_features_train,y=star_nc_train)
+        mod_temp=LogisticRegression(C=para)
+        mod_temp.fit(X=text_features_train,y=star_train)
         pred=mod_temp.predict(X=text_features_validate)
-        acc_mat[k,t]=np.mean(pred==star_nc_validate)
+        acc_mat[k,t]=np.mean(pred==star_validate)
+        pred=mod_temp.predict(X=text_features_train)
+        acc_mat_train[k,t]=np.mean(pred==star_train)
         t+=1
     k+=1
-np.mean(acc_mat,axis=0)
+print(np.mean(acc_mat,axis=0))
 
-import sklearn.ensemble
-# tuned hyperparameters: n_estimators, max_features='auto'，max_depth=100
+################## Random Forest #################
+
 n_fold=3
 n_words=1000
 kf=KFold(n_fold,shuffle=True)
@@ -71,16 +75,16 @@ mse_mat_forest=np.zeros([n_fold,len(n_estimators)])
 k=0
 for train_idx,validate_idx in kf.split(text_features):
     text_features_train=text_features[train_idx]
-    star_nc_train=star_nc[train_idx]
+    star_train=star[train_idx]
     text_features_validate=text_features[validate_idx]
-    star_nc_validate=star_nc[validate_idx]
+    star_validate=star[validate_idx]
     fselect = SelectKBest(chi2 , k=n_words)
-    text_features_train = fselect.fit_transform(text_features_train,star_nc_train)
+    text_features_train = fselect.fit_transform(text_features_train,star_train)
     text_features_validate=text_features_validate[:,fselect.get_support()]
     vocab_current = np.array(vocab)[fselect.get_support()]
     #print("Train Feature Space Shape:",text_features_train.shape)
     #print("Test Feature Space Shape:",text_features_validate.shape)
-    print("Selected Features:",vocab_current.tolist())
+    print("Last Three Selected Features:",vocab_current.tolist()[-3:])
     ##############################################
     #    Build Models and Tune Parameters        #
     #         Take Tree as an Example            #
@@ -89,10 +93,95 @@ for train_idx,validate_idx in kf.split(text_features):
     t=0
     for par in n_estimators:
         mod_temp=sklearn.ensemble.RandomForestClassifier(n_estimators = par)
-        mod_temp.fit(X=text_features_train,y=star_nc_train)
+        mod_temp.fit(X=text_features_train,y=star_train)
         pred=mod_temp.predict(X=text_features_validate)
-        acc_mat_forest[k,t]=np.mean(pred==star_nc_validate)
-        mse_mat_forest[k,t]= np.sum((pred-star_nc_validate)**2)
+        acc_mat_forest[k,t]=np.mean(pred==star_validate)
+        mse_mat_forest[k,t]= np.sum((pred-star_validate)**2)
+        t+=1
+        print("t = ",t)
+    k+=1
+    print("k = ", k)
+# vaverage prediction accuracy
+print(np.mean(acc_mat_forest,axis=0))
+print(np.mean(mse_mat_forest/len(pred),axis=0))
+
+
+##############Multi-Layer Percepton#################
+n_fold=3
+n_words=500
+kf=KFold(n_fold,shuffle=True)
+hidden_layer_sizes = [10,100,200,500]
+#max_features = []
+acc_mat_forest=np.zeros([n_fold,len(hidden_layer_sizes)])
+mse_mat_forest=np.zeros([n_fold,len(hidden_layer_sizes)])
+k=0
+for train_idx,validate_idx in kf.split(text_features):
+    text_features_train=text_features[train_idx]
+    star_train=star[train_idx]
+    text_features_validate=text_features[validate_idx]
+    star_validate=star[validate_idx]
+    fselect = SelectKBest(chi2 , k=n_words)
+    text_features_train = fselect.fit_transform(text_features_train,star_train)
+    text_features_validate=text_features_validate[:,fselect.get_support()]
+    vocab_current = np.array(vocab)[fselect.get_support()]
+    #print("Train Feature Space Shape:",text_features_train.shape)
+    #print("Test Feature Space Shape:",text_features_validate.shape)
+    print("Last Three Selected Features:",vocab_current.tolist()[-3:])
+    ##############################################
+    #    Build Models and Tune Parameters        #
+    #         Take Tree as an Example            #
+    #Tuning n_estimators, max_features，max_depth#
+    ##############################################
+    t=0
+    for par in hidden_layer_sizes:
+        mod_temp=MLPClassifier(solver='lbfgs', alpha=1e-5,
+                               hidden_layer_sizes=(par,par), random_state=1)
+        mod_temp.fit(X=text_features_train,y=star_train)
+        pred=mod_temp.predict(X=text_features_validate)
+        acc_mat_forest[k,t]=np.mean(pred==star_validate)
+        mse_mat_forest[k,t]= np.sum((pred-star_validate)**2)
+        t+=1
+        print("t = ",t)
+    k+=1
+    print("k = ", k)
+# vaverage prediction accuracy
+print(np.mean(acc_mat_forest,axis=0))
+print(np.mean(mse_mat_forest/len(pred),axis=0))
+
+################### Multilayer Percepton with logistic activation function #################
+n_fold=3
+n_words=500
+kf=KFold(n_fold,shuffle=True)
+hidden_layer_sizes = [10,100,200,500,1000]
+#max_features = []
+acc_mat_forest=np.zeros([n_fold,len(hidden_layer_sizes)])
+mse_mat_forest=np.zeros([n_fold,len(hidden_layer_sizes)])
+k=0
+for train_idx,validate_idx in kf.split(text_features):
+    text_features_train=text_features[train_idx]
+    star_train=star[train_idx]
+    text_features_validate=text_features[validate_idx]
+    star_validate=star[validate_idx]
+    fselect = SelectKBest(chi2 , k=n_words)
+    text_features_train = fselect.fit_transform(text_features_train,star_train)
+    text_features_validate=text_features_validate[:,fselect.get_support()]
+    vocab_current = np.array(vocab)[fselect.get_support()]
+    #print("Train Feature Space Shape:",text_features_train.shape)
+    #print("Test Feature Space Shape:",text_features_validate.shape)
+    print("Last Three Selected Features:",vocab_current.tolist()[-3:])
+    ##############################################
+    #    Build Models and Tune Parameters        #
+    #         Take Tree as an Example            #
+    #Tuning n_estimators, max_features，max_depth#
+    ##############################################
+    t=0
+    for par in hidden_layer_sizes:
+        mod_temp=MLPClassifier(solver='lbfgs', alpha=1e-5,activation="logistic",
+                               hidden_layer_sizes=(par,par,par), random_state=1)
+        mod_temp.fit(X=text_features_train,y=star_train)
+        pred=mod_temp.predict(X=text_features_validate)
+        acc_mat_forest[k,t]=np.mean(pred==star_validate)
+        mse_mat_forest[k,t]= np.sum((pred-star_validate)**2)
         t+=1
         print("t = ",t)
     k+=1
