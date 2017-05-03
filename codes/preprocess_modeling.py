@@ -65,93 +65,14 @@ print(np.mean(acc_mat,axis=0))
 
 ################## Random Forest #################
 n_fold=10
-n_words=1000
+n_words=500
 kf=KFold(n_fold,shuffle=True)
 #n_estimators = [10,20,30,40,50,60,70,80,90,100,150,200,250]
 n_estimators = [10,50,100,150,200]
-#acc_mat_forest=np.zeros([n_fold,len(n_estimators)])
-mse_mat_forest=np.zeros([n_fold,len(n_estimators)])
-k=0
-for train_idx,validate_idx in kf.split(text_features):
-    text_features_train=text_features[train_idx]
-    star_train=star[train_idx]
-    text_features_validate=text_features[validate_idx]
-    star_validate=star[validate_idx]
-    fselect = SelectKBest(chi2 , k=n_words)
-    text_features_train = fselect.fit_transform(text_features_train,star_train)
-    text_features_validate=text_features_validate[:,fselect.get_support()]
-    vocab_current = np.array(vocab)[fselect.get_support()]
-    #print("Train Feature Space Shape:",text_features_train.shape)
-    #print("Test Feature Space Shape:",text_features_validate.shape)
-    print("Last Three Selected Features:",vocab_current.tolist()[-3:])
-    ##############################################
-    #    Build Models and Tune Parameters        #
-    #         Take Tree as an Example            #
-    #Tuning n_estimators, max_features，max_depth#
-    ##############################################
-    t=0
-    for par in n_estimators:
-        mod_temp=sklearn.ensemble.RandomForestRegressor(n_estimators = par)
-        mod_temp.fit(X=text_features_train,y=star_train)
-        pred=mod_temp.predict(X=text_features_validate)
-        #acc_mat_forest[k,t]=np.mean(pred==star_validate)
-        mse_mat_forest[k,t]= np.sum((pred-star_validate)**2)
-        t+=1
-        print("t = ",t)
-    k+=1
-    print("k = ", k)
-# vaverage prediction accuracy
-#print(np.mean(acc_mat_forest,axis=0))
-print(np.mean(mse_mat_forest/len(pred),axis=0))
-
-n_fold=5
-n_words=500
-kf=KFold(n_fold,shuffle=True)
-#n_estimators = [10,50,100,150,200,250] ## best 200
 max_features = [i for i in range(15,26)] ## best 24
-#acc_mat_forest=np.zeros([n_fold,len(n_estimators)])
-mse_mat_forest=np.zeros([n_fold,len(max_features)])
-k=0
-for train_idx,validate_idx in kf.split(text_features):
-    text_features_train=text_features[train_idx]
-    star_train=star[train_idx]
-    text_features_validate=text_features[validate_idx]
-    star_validate=star[validate_idx]
-    fselect = SelectKBest(chi2 , k=n_words)
-    text_features_train = fselect.fit_transform(text_features_train,star_train)
-    text_features_validate=text_features_validate[:,fselect.get_support()]
-    vocab_current = np.array(vocab)[fselect.get_support()]
-    #print("Train Feature Space Shape:",text_features_train.shape)
-    #print("Test Feature Space Shape:",text_features_validate.shape)
-    print("Last Three Selected Features:",vocab_current.tolist()[-3:])
-    ##############################################
-    #    Build Models and Tune Parameters        #
-    #         Take Tree as an Example            #
-    #Tuning n_estimators, max_features，max_depth#
-    ##############################################
-    t=0
-    for par in max_features:
-        mod_temp=sklearn.ensemble.RandomForestRegressor(n_estimators = 200, max_features=par)
-        mod_temp.fit(X=text_features_train,y=star_train)
-        pred=mod_temp.predict(X=text_features_validate)
-        #acc_mat_forest[k,t]=np.mean(pred==star_validate)
-        mse_mat_forest[k,t]= np.sum((pred-star_validate)**2)
-        t+=1
-        print("t = ",t)
-    k+=1
-    print("k = ", k)
-# vaverage prediction accuracy
-#print(np.mean(acc_mat_forest,axis=0))
-print(np.mean(mse_mat_forest/len(pred),axis=0))
-
-n_fold=5
-n_words=500
-kf=KFold(n_fold,shuffle=True)
-#n_estimators = [10,50,100,150,200,250] ## best 200
-#max_features = [i for i in range(15,26)] ## best 24
 max_depth = [30,40,50,60,70] ## best 40
 #acc_mat_forest=np.zeros([n_fold,len(n_estimators)])
-mse_mat_forest=np.zeros([n_fold,len(max_depth)])
+mse_mat_forest=np.zeros([n_fold,len(n_estimators)*len(max_features)*len(max_depth)])
 k=0
 for train_idx,validate_idx in kf.split(text_features):
     text_features_train=text_features[train_idx]
@@ -171,14 +92,16 @@ for train_idx,validate_idx in kf.split(text_features):
     #Tuning n_estimators, max_features，max_depth#
     ##############################################
     t=0
-    for par in max_depth:
-        mod_temp=sklearn.ensemble.RandomForestRegressor(n_estimators = 200, max_features=24, max_depth = par)
-        mod_temp.fit(X=text_features_train,y=star_train)
-        pred=mod_temp.predict(X=text_features_validate)
-        #acc_mat_forest[k,t]=np.mean(pred==star_validate)
-        mse_mat_forest[k,t]= np.sum((pred-star_validate)**2)
-        t+=1
-        print("t = ",t)
+    for est in n_estimators:
+        for f in max_features:
+            for d in max_depth:
+                mod_temp=sklearn.ensemble.RandomForestRegressor(n_estimators = est, max_features = f, max_depth = d)
+                mod_temp.fit(X=text_features_train,y=star_train)
+                pred=mod_temp.predict(X=text_features_validate)
+                #acc_mat_forest[k,t]=np.mean(pred==star_validate)
+                mse_mat_forest[k,t]= np.sum((pred-star_validate)**2)
+                t+=1
+                print("t = ",t)
     k+=1
     print("k = ", k)
 # vaverage prediction accuracy
