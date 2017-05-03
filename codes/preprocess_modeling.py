@@ -58,3 +58,45 @@ for train_idx,validate_idx in kf.split(text_features):
         t+=1
     k+=1
 np.mean(acc_mat,axis=0)
+
+import sklearn.ensemble
+# tuned hyperparameters: n_estimators, max_features='auto'，max_depth=100
+n_fold=3
+n_words=1000
+kf=KFold(n_fold,shuffle=True)
+n_estimators = [5,10,50,100]
+#max_features = []
+acc_mat_forest=np.zeros([n_fold,len(n_estimators)])
+mse_mat_forest=np.zeros([n_fold,len(n_estimators)])
+k=0
+for train_idx,validate_idx in kf.split(text_features):
+    text_features_train=text_features[train_idx]
+    star_nc_train=star_nc[train_idx]
+    text_features_validate=text_features[validate_idx]
+    star_nc_validate=star_nc[validate_idx]
+    fselect = SelectKBest(chi2 , k=n_words)
+    text_features_train = fselect.fit_transform(text_features_train,star_nc_train)
+    text_features_validate=text_features_validate[:,fselect.get_support()]
+    vocab_current = np.array(vocab)[fselect.get_support()]
+    #print("Train Feature Space Shape:",text_features_train.shape)
+    #print("Test Feature Space Shape:",text_features_validate.shape)
+    print("Selected Features:",vocab_current.tolist())
+    ##############################################
+    #    Build Models and Tune Parameters        #
+    #         Take Tree as an Example            #
+    #Tuning n_estimators, max_features，max_depth#
+    ##############################################
+    t=0
+    for par in n_estimators:
+        mod_temp=sklearn.ensemble.RandomForestClassifier(n_estimators = par)
+        mod_temp.fit(X=text_features_train,y=star_nc_train)
+        pred=mod_temp.predict(X=text_features_validate)
+        acc_mat_forest[k,t]=np.mean(pred==star_nc_validate)
+        mse_mat_forest[k,t]= np.sum((pred-star_nc_validate)**2)
+        t+=1
+        print("t = ",t)
+    k+=1
+    print("k = ", k)
+# vaverage prediction accuracy
+print(np.mean(acc_mat_forest,axis=0))
+print(np.mean(mse_mat_forest/len(pred),axis=0))
