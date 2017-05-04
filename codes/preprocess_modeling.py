@@ -8,6 +8,7 @@ from sklearn.model_selection import KFold
 from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
 import sklearn.ensemble
+import mord
 
 review = pd.read_csv("../data/selectedreviews.csv")
 
@@ -275,3 +276,44 @@ for train_idx,validate_idx in kf.split(text_features):
     print("k = ", k)
 # vaverage prediction accuracy
 print(np.mean(mse_mat_forest,axis=0))
+
+##### Ordinal Probit Regression ###
+
+
+n_fold=10
+n_words=500
+kf=KFold(n_fold,shuffle=True)
+parameters=np.linspace(0.1,5,50)
+acc_mat=np.zeros([n_fold,len(parameters)])
+acc_mat_train=np.zeros([n_fold,len(parameters)])
+k=0
+for train_idx,validate_idx in kf.split(text_features):
+    text_features_train=text_features[train_idx]
+    star_train=star[train_idx]
+    text_features_validate=text_features[validate_idx]
+    star_validate=star[validate_idx]
+    fselect = SelectKBest(chi2,k=n_words)
+    text_features_train = fselect.fit_transform(text_features_train,star_train)
+    text_features_validate=text_features_validate[:,fselect.get_support()]
+    vocab_current = np.array(vocab)[fselect.get_support()]
+    print("Train Feature Space Shape:",text_features_train.shape)
+    print("Test Feature Space Shape:",text_features_validate.shape)
+    print("Last Three Selected Features:",vocab_current.tolist()[-3:])
+    ##########################################
+    #    Build Models and Tune Parameters    #
+    #         Take Tree as an Example        #
+    #             Tuning max_depth           #
+    ##########################################
+    t=0
+    for para in parameters:
+        mod_temp=mord.OrdinalRidge(alpha=para)
+        mod_temp.fit(X=text_features_train,y=star_train)
+        pred=mod_temp.predict(X=text_features_validate)
+        acc_mat[k,t]=np.mean((pred-star_validate)**2)
+        pred=mod_temp.predict(X=text_features_train)
+        acc_mat_train[k,t]=np.mean((pred-star_train)**2)
+        t+=1
+    k+=1
+print(np.mean(acc_mat,axis=0))
+
+
